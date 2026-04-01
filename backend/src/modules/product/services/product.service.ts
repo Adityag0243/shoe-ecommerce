@@ -8,6 +8,10 @@ import { Review } from '../../review/repositories/review.model.js';
 import { Product } from '../repositories/product.model.js';
 import { ProductDescription } from '../repositories/product-description.model.js';
 import { generateAndStoreEmbedding } from './embedding.service.js';
+import {
+    getPaginationMeta,
+    getPaginationParams,
+} from '../../../shared/utils/pagination.util.js';
 
 export const createProduct = asyncHandler(
     async (req: Request, res: Response) => {
@@ -86,29 +90,47 @@ export const getSimilarShoes = asyncHandler(
 
 export const getProductDescriptions = asyncHandler(
     async (_req: Request, res: Response) => {
-        const descriptions = await ProductDescription.find();
-        return res
-            .status(200)
-            .json(
-                new ApiResponse(
-                    200,
-                    'Product descriptions fetched successfully',
-                    descriptions,
-                ),
-            );
+        const { page, limit, skip } = getPaginationParams(
+            (_req.query as Record<string, unknown>) ?? {},
+            { limit: 20, maxLimit: 100 },
+        );
+
+        const [items, totalItems] = await Promise.all([
+            ProductDescription.find().skip(skip).limit(limit),
+            ProductDescription.countDocuments(),
+        ]);
+
+        return res.status(200).json(
+            new ApiResponse(200, 'Product descriptions fetched successfully', {
+                items,
+                pagination: getPaginationMeta(page, limit, totalItems),
+            }),
+        );
     },
 );
 
 export const getProducts = asyncHandler(
     async (_req: Request, res: Response) => {
-        const products = await Product.find()
-            .populate('category')
-            .populate('imageSet');
-        return res
-            .status(200)
-            .json(
-                new ApiResponse(200, 'Products fetched successfully', products),
-            );
+        const { page, limit, skip } = getPaginationParams(
+            (_req.query as Record<string, unknown>) ?? {},
+            { limit: 12, maxLimit: 60 },
+        );
+
+        const [items, totalItems] = await Promise.all([
+            Product.find()
+                .skip(skip)
+                .limit(limit)
+                .populate('category')
+                .populate('imageSet'),
+            Product.countDocuments(),
+        ]);
+
+        return res.status(200).json(
+            new ApiResponse(200, 'Products fetched successfully', {
+                items,
+                pagination: getPaginationMeta(page, limit, totalItems),
+            }),
+        );
     },
 );
 

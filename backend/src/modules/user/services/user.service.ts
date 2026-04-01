@@ -3,6 +3,10 @@ import type { Request, Response } from 'express';
 import { ApiError } from '../../../shared/errors/api-error.class.js';
 import { ApiResponse } from '../../../shared/responses/api-response.builder.js';
 import { asyncHandler } from '../../../shared/utils/async-handler.util.js';
+import {
+    getPaginationMeta,
+    getPaginationParams,
+} from '../../../shared/utils/pagination.util.js';
 import { Favourite } from '../repositories/favourite.model.js';
 import { Profile } from '../repositories/profile.model.js';
 import { User } from '../repositories/user.model.js';
@@ -57,12 +61,26 @@ export const addFavourite = asyncHandler(
 
 export const getFavourites = asyncHandler(
     async (req: Request, res: Response) => {
-        const favs = await Favourite.find({
-            userId: (req as any).user?.id,
-        }).populate('productId');
+        const { page, limit, skip } = getPaginationParams(
+            (req.query as Record<string, unknown>) ?? {},
+            { limit: 20, maxLimit: 100 },
+        );
 
-        res.status(200).json(
-            new ApiResponse(200, 'Favourites fetched successfully', favs),
+        const filter = { userId: (req as any).user?.id };
+        const [items, totalItems] = await Promise.all([
+            Favourite.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .populate('productId'),
+            Favourite.countDocuments(filter),
+        ]);
+
+        return res.status(200).json(
+            new ApiResponse(200, 'Favourites fetched successfully', {
+                items,
+                pagination: getPaginationMeta(page, limit, totalItems),
+            }),
         );
     },
 );
